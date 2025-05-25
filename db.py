@@ -1,5 +1,6 @@
 import sqlite3
 
+# initializes the database and creates a tasks table if it doesn't exist
 def init_db():
     conn = sqlite3.connect('tasks.db')
     c = conn.cursor()
@@ -16,6 +17,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# adds a new task
 def add_task(user_id, title, tag, due_date, completed=False):
     conn = sqlite3.connect('tasks.db')
     c = conn.cursor()
@@ -26,6 +28,7 @@ def add_task(user_id, title, tag, due_date, completed=False):
     conn.commit()
     conn.close()
 
+# retrieves all tasks for a given user, sorted by completion and due date
 def get_user_tasks(user_id):
     conn = sqlite3.connect('tasks.db')
     c = conn.cursor()
@@ -39,6 +42,7 @@ def get_user_tasks(user_id):
     conn.close()
     return tasks
 
+# marks a task as completed
 def mark_task_completed(task_id):
     conn = sqlite3.connect('tasks.db')
     c = conn.cursor()
@@ -50,6 +54,7 @@ def mark_task_completed(task_id):
     conn.commit()
     conn.close()
 
+# deletes a task
 def delete_task(task_id):
     conn = sqlite3.connect('tasks.db')
     c = conn.cursor()

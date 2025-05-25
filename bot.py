@@ -7,11 +7,9 @@ from db import init_db, add_task, get_user_tasks, mark_task_completed, delete_ta
 from reminders import schedule_reminder, schedule_deadline_passed_reminder
 from datetime import datetime, timedelta
 
-# States
 CHOOSING, ENTER_TITLE, ENTER_DATE, ENTER_TIME, CHOOSE_TAG, VIEW_TASKS = range(6)
 
 TOKEN = '7371685386:AAH-0_78Y9uutE7lqagj9DceqCFoEUv_Jtc'
-
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -23,7 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSING
 
-
+# main menu buttons
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -45,7 +43,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHOOSING
 
-
+# displaying tasks and handling their status (complete/incomplete)
 async def task_detail_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -96,7 +94,7 @@ async def task_detail_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return VIEW_TASKS
 
-
+# shows a list of tasks
 async def show_task_list(query):
     tasks = get_user_tasks(query.from_user.id)
     keyboard = []
@@ -117,19 +115,18 @@ async def show_task_list(query):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-
+# receives the title of the task
 async def receive_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['title'] = update.message.text
     keyboard = [[InlineKeyboardButton(t, callback_data=t)] for t in ['Home', 'Work', 'Leisure', 'Urgent', 'Other']]
     await update.message.reply_text("Choose a tag!", reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_TAG
 
-
+# receives the tag of the task
 async def choose_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     context.user_data['tag'] = query.data
 
-    # Create date selection keyboard with DD-MM-YYYY format display
     today = datetime.now().date()
     keyboard = [
         [
@@ -143,7 +140,7 @@ async def choose_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("Select the due date!", reply_markup=InlineKeyboardMarkup(keyboard))
     return ENTER_DATE
 
-
+# receives the date of the task deadline
 async def enter_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -154,7 +151,6 @@ async def enter_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['date'] = query.data
 
-    # Create time selection keyboard
     keyboard = [
         [
             InlineKeyboardButton("Morning (9:00)", callback_data="09:00"),
@@ -168,12 +164,11 @@ async def enter_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("Select time:", reply_markup=InlineKeyboardMarkup(keyboard))
     return ENTER_TIME
 
-
+# receives custom date
 async def receive_custom_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Validate date format (DD-MM-YYYY)
         date_str = update.message.text
-        datetime.strptime(date_str, "%d-%m-%Y")  # This validates the format
+        datetime.strptime(date_str, "%d-%m-%Y")
         context.user_data['date'] = date_str
 
         keyboard = [
@@ -192,7 +187,7 @@ async def receive_custom_date(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Invalid date format. Please use DD-MM-YYYY (e.g. 31-12-2023)")
         return ENTER_DATE
 
-
+# receives time of the deadline
 async def enter_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -203,7 +198,6 @@ async def enter_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['time'] = query.data
 
-    # Combine date and time (convert from DD-MM-YYYY to YYYY-MM-DD for storage)
     try:
         date_obj = datetime.strptime(context.user_data['date'], "%d-%m-%Y")
         due_date_str = f"{date_obj.strftime('%Y-%m-%d')} {context.user_data['time']}"
@@ -215,7 +209,7 @@ async def enter_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         due_date = datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
         add_task(user_id, title, tag, due_date_str, completed=False)
         chat_id = query.message.chat.id
-        schedule_reminder(TOKEN, chat_id, f"Reminder: {title}", due_date)
+        schedule_reminder(TOKEN, chat_id, f"Reminder: {title} deadline is in 1 hour!", due_date)
         schedule_deadline_passed_reminder(TOKEN, chat_id, title, due_date)
 
         keyboard = [
@@ -231,29 +225,26 @@ async def enter_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Invalid date format. Please start over.")
         return CHOOSING
 
-
+# receives custom time of the deadline
 async def receive_custom_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Validate time format
         time_str = update.message.text.strip()
-        datetime.strptime(time_str, "%H:%M")  # format check
+        datetime.strptime(time_str, "%H:%M")
         context.user_data['time'] = time_str
 
-        # Combine with the date
         date_str = context.user_data['date']
-        full_datetime_str = f"{date_str} {time_str}"  # e.g. 25-05-2025 15:30
+        full_datetime_str = f"{date_str} {time_str}"
         due_date = datetime.strptime(full_datetime_str, "%d-%m-%Y %H:%M")
 
-        context.user_data['due_date'] = due_date.strftime("%Y-%m-%d %H:%M")  # for DB
+        context.user_data['due_date'] = due_date.strftime("%Y-%m-%d %H:%M")
 
-        # Save task and schedule reminder
         user_id = update.message.from_user.id
         title = context.user_data['title']
         tag = context.user_data['tag']
 
         add_task(user_id, title, tag, due_date.strftime("%Y-%m-%d %H:%M"), completed=False)
         chat_id = update.message.chat.id
-        schedule_reminder(TOKEN, chat_id, f"Reminder: {title}", due_date)
+        schedule_reminder(TOKEN, chat_id, f"Reminder: {title} deadline is in 1 hour!", due_date)
         schedule_deadline_passed_reminder(TOKEN, chat_id, title, due_date)
 
         keyboard = [
@@ -270,12 +261,12 @@ async def receive_custom_time(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Invalid time format. Please use HH:MM (e.g. 15:30)")
         return ENTER_TIME
 
-
+# cancels the conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
 
-
+# entry point
 def main():
     init_db()
     app = ApplicationBuilder().token(TOKEN).build()
